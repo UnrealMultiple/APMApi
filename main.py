@@ -1,9 +1,11 @@
 import io
 import json
 from glob import glob
+import time
 
+import aiofiles
 import uvicorn
-from starlette.responses import FileResponse
+from starlette.responses import StreamingResponse
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
@@ -11,8 +13,19 @@ from config import settings
 import os
 import shutil
 import zipfile
+from starlette.requests import Request
 
 app = FastAPI()
+
+
+@app.middleware("http")
+async def dispatch(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time*1000)+"ms"
+    return response
+
 uploaded_plugins_path = 'uploaded_plugins'
 packed_plugins_path = 'packed_plugins'
 plugin_list: json
@@ -29,17 +42,18 @@ def internal_get_plugin_list():
 
 def packet_plugin(assembly_name: str):
     file_paths = glob(f"{uploaded_plugins_path}/Plugins/{assembly_name}.*")
-    with zipfile.ZipFile(f"{packed_plugins_path}/{assembly_name}.zip", 'w') as zip_archive:
+    with zipfile.ZipFile(f"{packed_plugins_path}/{assembly_name}.zip", 'w', compresslevel=9) as zip_archive:
         for file_path in file_paths:
             with open(file_path, 'rb') as f:
                 data = f.read()
                 zip_archive.writestr(os.path.basename(file_path), data)
-    print(f"{assembly_name + '.zip'}打包成功.")
+    # print(f"{assembly_name + '.zip'}打包成功.")
 
 
 @app.get("/supermarket/xml")
 async def supermarket_xml():
-    return {"备案号": "闽ICP备2024057933号-1", "好神秘": "为什么你会想去看这个API捏?"}
+    return {"超(市)级感谢": "此下载镜像由迅猛龙赞助~",
+            "备案号": "闽ICP备2024057933号-1", }
 
 
 @app.post("/plugin/upload")
@@ -66,12 +80,11 @@ async def upload_plugin_zip(token: str = Form(...), file: UploadFile = File(...)
 
     global plugin_list
     with open("uploaded_plugins/Plugins.json", 'r', encoding='utf-8') as file:
-
         plugin_list = json.loads(file.read())
 
     for p in plugin_list:
         packet_plugin(p['AssemblyName'])
-    print(f"已解压插件包到: {uploaded_plugins_path}")
+    print(f"插件包更新成功~")
 
     return JSONResponse(content={"message": "插件包更新成功~"})
 
@@ -81,15 +94,52 @@ async def get_plugin_list():
     return JSONResponse(internal_get_plugin_list())
 
 
+@app.get("/plugin/get_plugin_manifest/")
+async def get_plugin_list(assembly_name):
+    _plugin_list = internal_get_plugin_list()
+    for i in _plugin_list:
+        if i['AssemblyName'] == assembly_name:
+            return JSONResponse(i)
+
+    return HTTPException(status_code=404, detail="没有找到这个插件捏~")
+
+
 @app.get("/plugin/get_all_plugins")
 async def get_all_plugins():
-    return FileResponse(f'{uploaded_plugins_path}/Plugins.zip', filename="Plugins.zip")
+    file_path = f'{uploaded_plugins_path}/Plugins.zip'
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="插件包当前未上传,无法下载~")
+    file_size = os.path.getsize(file_path)
+    async def file_stream():
+        async with aiofiles.open(file_path, 'rb') as file:
+            chunk_size = 128 * 1024
+            while chunk := await file.read(chunk_size):
+                yield chunk
+
+    return StreamingResponse(file_stream(), media_type="application/zip",
+                             headers={"Content-Disposition": "attachment; filename=Plugins.zip","Content-Length": str(file_size)})
+
+
 
 
 @app.get("/plugin/get_plugin_zip")
 async def get_plugin_zip(assembly_name):
-    return FileResponse(f'{packed_plugins_path}/{assembly_name}.zip', filename=f'{assembly_name}.zip')
+    file_path = f'{packed_plugins_path}/{assembly_name}.zip'
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="没有找到指定插件~")
+    file_size = os.path.getsize(file_path)
+
+    async def file_stream():
+        async with aiofiles.open(file_path, 'rb') as file:
+            chunk_size = 128 * 1024
+            while chunk := await file.read(chunk_size):
+                yield chunk
+
+    return StreamingResponse(file_stream(), media_type="application/zip",
+                             headers={"Content-Disposition": f"attachment; filename={assembly_name}.zip",
+                                      "Content-Length": str(file_size)})
 
 
 if __name__ == '__main__':
     uvicorn.run(app, host="0.0.0.0", port=11434)
+
