@@ -1,5 +1,6 @@
 import io
 import json
+import traceback
 from glob import glob
 import time
 
@@ -30,7 +31,7 @@ uploaded_plugins_path = 'uploaded_plugins'
 packed_plugins_path = 'packed_plugins'
 plugin_list: json
 plugin_list = None
-
+is_uploading = False
 
 def internal_get_plugin_list():
     global plugin_list
@@ -58,33 +59,43 @@ async def supermarket_xml():
 
 @app.post("/plugin/upload")
 async def upload_plugin_zip(token: str = Form(...), file: UploadFile = File(...)):
+    global is_uploading
+    global plugin_list
+
     if token != settings.token:
         raise HTTPException(status_code=401, detail="没认证捏~")
-    content = await file.read()
-    print(f"收到插件包: {file.filename}")
-    print(f"大小: {len(content)} bytes")
 
-    if os.path.exists(uploaded_plugins_path):
-        shutil.rmtree(uploaded_plugins_path)
-    os.makedirs(uploaded_plugins_path)
+    is_uploading = True
+    try:
+        content = await file.read()
+        print(f"收到插件包: {file.filename}")
+        print(f"大小: {len(content)} bytes")
 
-    if os.path.exists(packed_plugins_path):
-        shutil.rmtree(packed_plugins_path)
-    os.makedirs(packed_plugins_path)
+        if os.path.exists(uploaded_plugins_path):
+            shutil.rmtree(uploaded_plugins_path)
+        os.makedirs(uploaded_plugins_path)
 
-    with zipfile.ZipFile(io.BytesIO(content), 'r') as zip_ref:
-        zip_ref.extractall(uploaded_plugins_path)
+        if os.path.exists(packed_plugins_path):
+            shutil.rmtree(packed_plugins_path)
+        os.makedirs(packed_plugins_path)
 
-    with open(uploaded_plugins_path + '/Plugins.zip', 'wb') as file:
-        file.write(content)
+        with zipfile.ZipFile(io.BytesIO(content), 'r') as zip_ref:
+            zip_ref.extractall(uploaded_plugins_path)
 
-    global plugin_list
-    with open("uploaded_plugins/Plugins.json", 'r', encoding='utf-8') as file:
-        plugin_list = json.loads(file.read())
+        with open(uploaded_plugins_path + '/Plugins.zip', 'wb') as file:
+            file.write(content)
 
-    for p in plugin_list:
-        packet_plugin(p['AssemblyName'])
-    print(f"插件包更新成功~")
+
+        with open("uploaded_plugins/Plugins.json", 'r', encoding='utf-8') as file:
+            plugin_list = json.loads(file.read())
+
+        for p in plugin_list:
+            packet_plugin(p['AssemblyName'])
+        print(f"插件包更新成功~")
+    except Exception:
+        print(f"插件包更新失败: {traceback.format_exc()}")
+    finally:
+        is_uploading = False
 
     return JSONResponse(content={"message": "插件包更新成功~"})
 
@@ -109,12 +120,14 @@ async def get_all_plugins():
     file_path = f'{uploaded_plugins_path}/Plugins.zip'
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="插件包当前未上传,无法下载~")
+
+    if is_uploading:
+        raise HTTPException(403, "API正在同步插件中,请稍后重试~")
+
     file_size = os.path.getsize(file_path)
     async def file_stream():
         async with aiofiles.open(file_path, 'rb') as file:
-            chunk_size = 128 * 1024
-            while chunk := await file.read(chunk_size):
-                yield chunk
+              yield await file.read()
 
     return StreamingResponse(file_stream(), media_type="application/zip",
                              headers={"Content-Disposition": "attachment; filename=Plugins.zip","Content-Length": str(file_size)})
@@ -125,15 +138,21 @@ async def get_all_plugins():
 @app.get("/plugin/get_plugin_zip")
 async def get_plugin_zip(assembly_name):
     file_path = f'{packed_plugins_path}/{assembly_name}.zip'
+
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="没有找到指定插件~")
+
+    if is_uploading:
+        raise HTTPException(403, "API正在同步插件中,请稍后重试~")
+
+
     file_size = os.path.getsize(file_path)
 
     async def file_stream():
         async with aiofiles.open(file_path, 'rb') as file:
-            chunk_size = 128 * 1024
-            while chunk := await file.read(chunk_size):
-                yield chunk
+
+                    yield await file.read()
+
 
     return StreamingResponse(file_stream(), media_type="application/zip",
                              headers={"Content-Disposition": f"attachment; filename={assembly_name}.zip",
