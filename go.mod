@@ -1,8 +1,8 @@
 module github.com/UnrealMultiple/APMApi
 
-go 1.24.4
+go 1.25
 
-replace github.com/apache/thrift => github.com/apache/thrift v0.13.0
+replace github.com/apache/thrift => github.com/apache/thrift v0.24.0
 
 require (
 	github.com/apache/thrift v0.0.0-00010101000000-000000000000
