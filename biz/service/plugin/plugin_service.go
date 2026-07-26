@@ -47,7 +47,21 @@ func escapeLike(s string) string {
 	return r.Replace(s)
 }
 
-func (s *PluginService) query(keyword string, page, pageSize *int64) (*plugin.PluginListData, error) {
+// orderClause 排序方式白名单, 默认按下载量降序
+func orderClause(sort string) string {
+	switch sort {
+	case "rating":
+		return "rating_score DESC, rating_count DESC, id"
+	case "newest":
+		return "created_at DESC, id DESC"
+	case "name":
+		return "name, id"
+	default: // download
+		return "download_count DESC, id"
+	}
+}
+
+func (s *PluginService) query(keyword, sort string, page, pageSize *int64) (*plugin.PluginListData, error) {
 	p, size := normalizePage(page, pageSize)
 
 	q := db.DB.Model(&db.Plugin{})
@@ -61,7 +75,7 @@ func (s *PluginService) query(keyword string, page, pageSize *int64) (*plugin.Pl
 	}
 
 	var rows []db.Plugin
-	if err := q.Order("id").Offset(int((p - 1) * size)).Limit(int(size)).Find(&rows).Error; err != nil {
+	if err := q.Order(orderClause(sort)).Offset(int((p - 1) * size)).Limit(int(size)).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
@@ -73,14 +87,14 @@ func (s *PluginService) query(keyword string, page, pageSize *int64) (*plugin.Pl
 	}, nil
 }
 
-// Search 搜索插件, 支持按名称模糊查询与分页
+// Search 搜索插件, 支持按名称模糊查询、排序与分页
 func (s *PluginService) Search(req *plugin.SearchReq) (*plugin.PluginListData, error) {
-	return s.query(req.GetKeyword(), req.Page, req.PageSize)
+	return s.query(req.GetKeyword(), req.GetSort(), req.Page, req.PageSize)
 }
 
-// List 获取插件列表, 支持分页
+// List 获取插件列表, 支持排序与分页
 func (s *PluginService) List(req *plugin.ListReq) (*plugin.PluginListData, error) {
-	return s.query("", req.Page, req.PageSize)
+	return s.query("", req.GetSort(), req.Page, req.PageSize)
 }
 
 // Detail 获取插件详情(含历史版本)

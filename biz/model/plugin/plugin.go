@@ -1472,6 +1472,8 @@ type SearchReq struct {
 	Page *int64 `thrift:"page,2,optional" json:"page,omitempty" query:"page"`
 	// 每页数量, 默认20
 	PageSize *int64 `thrift:"page_size,3,optional" json:"page_size,omitempty" query:"page_size"`
+	// 排序: download(下载最多,默认) / rating(评分最高) / newest(最新收录) / name(名称)
+	Sort *string `thrift:"sort,4,optional" json:"sort,omitempty" query:"sort"`
 }
 
 func NewSearchReq() *SearchReq {
@@ -1508,10 +1510,20 @@ func (p *SearchReq) GetPageSize() (v int64) {
 	return *p.PageSize
 }
 
+var SearchReq_Sort_DEFAULT string
+
+func (p *SearchReq) GetSort() (v string) {
+	if !p.IsSetSort() {
+		return SearchReq_Sort_DEFAULT
+	}
+	return *p.Sort
+}
+
 var fieldIDToName_SearchReq = map[int16]string{
 	1: "keyword",
 	2: "page",
 	3: "page_size",
+	4: "sort",
 }
 
 func (p *SearchReq) IsSetKeyword() bool {
@@ -1524,6 +1536,10 @@ func (p *SearchReq) IsSetPage() bool {
 
 func (p *SearchReq) IsSetPageSize() bool {
 	return p.PageSize != nil
+}
+
+func (p *SearchReq) IsSetSort() bool {
+	return p.Sort != nil
 }
 
 func (p *SearchReq) Read(iprot thrift.TProtocol) (err error) {
@@ -1564,6 +1580,14 @@ func (p *SearchReq) Read(iprot thrift.TProtocol) (err error) {
 		case 3:
 			if fieldTypeId == thrift.I64 {
 				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -1631,6 +1655,17 @@ func (p *SearchReq) ReadField3(iprot thrift.TProtocol) error {
 	p.PageSize = _field
 	return nil
 }
+func (p *SearchReq) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Sort = _field
+	return nil
+}
 
 func (p *SearchReq) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -1648,6 +1683,10 @@ func (p *SearchReq) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField3(oprot); err != nil {
 			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
 			goto WriteFieldError
 		}
 	}
@@ -1723,6 +1762,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *SearchReq) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSort() {
+		if err = oprot.WriteFieldBegin("sort", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Sort); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
 }
 
 func (p *SearchReq) String() string {
@@ -1998,6 +2056,8 @@ type ListReq struct {
 	Page *int64 `thrift:"page,1,optional" json:"page,omitempty" query:"page"`
 	// 每页数量, 默认20
 	PageSize *int64 `thrift:"page_size,2,optional" json:"page_size,omitempty" query:"page_size"`
+	// 排序: download(下载最多,默认) / rating(评分最高) / newest(最新收录) / name(名称)
+	Sort *string `thrift:"sort,3,optional" json:"sort,omitempty" query:"sort"`
 }
 
 func NewListReq() *ListReq {
@@ -2025,9 +2085,19 @@ func (p *ListReq) GetPageSize() (v int64) {
 	return *p.PageSize
 }
 
+var ListReq_Sort_DEFAULT string
+
+func (p *ListReq) GetSort() (v string) {
+	if !p.IsSetSort() {
+		return ListReq_Sort_DEFAULT
+	}
+	return *p.Sort
+}
+
 var fieldIDToName_ListReq = map[int16]string{
 	1: "page",
 	2: "page_size",
+	3: "sort",
 }
 
 func (p *ListReq) IsSetPage() bool {
@@ -2036,6 +2106,10 @@ func (p *ListReq) IsSetPage() bool {
 
 func (p *ListReq) IsSetPageSize() bool {
 	return p.PageSize != nil
+}
+
+func (p *ListReq) IsSetSort() bool {
+	return p.Sort != nil
 }
 
 func (p *ListReq) Read(iprot thrift.TProtocol) (err error) {
@@ -2068,6 +2142,14 @@ func (p *ListReq) Read(iprot thrift.TProtocol) (err error) {
 		case 2:
 			if fieldTypeId == thrift.I64 {
 				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -2124,6 +2206,17 @@ func (p *ListReq) ReadField2(iprot thrift.TProtocol) error {
 	p.PageSize = _field
 	return nil
 }
+func (p *ListReq) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Sort = _field
+	return nil
+}
 
 func (p *ListReq) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -2137,6 +2230,10 @@ func (p *ListReq) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField2(oprot); err != nil {
 			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
 			goto WriteFieldError
 		}
 	}
@@ -2193,6 +2290,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *ListReq) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSort() {
+		if err = oprot.WriteFieldBegin("sort", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Sort); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
 }
 
 func (p *ListReq) String() string {

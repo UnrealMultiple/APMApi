@@ -62,6 +62,8 @@ struct SearchReq {
     2: optional i64 page (api.query = 'page');
     // 每页数量, 默认20
     3: optional i64 page_size (api.query = 'page_size');
+    // 排序: download(下载最多,默认) / rating(评分最高) / newest(最新收录) / name(名称)
+    4: optional string sort (api.query = 'sort');
 }
 
 // 搜索插件响应
@@ -80,6 +82,8 @@ struct ListReq {
     1: optional i64 page (api.query = 'page');
     // 每页数量, 默认20
     2: optional i64 page_size (api.query = 'page_size');
+    // 排序: download(下载最多,默认) / rating(评分最高) / newest(最新收录) / name(名称)
+    3: optional string sort (api.query = 'sort');
 }
 
 // 插件列表响应
