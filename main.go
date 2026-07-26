@@ -7,7 +7,6 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
-	"github.com/hertz-contrib/cors"
 
 	"github.com/UnrealMultiple/APMApi/biz/mw"
 	"github.com/UnrealMultiple/APMApi/config"
@@ -30,8 +29,6 @@ func main() {
 	)
 
 	h.Use(mw.ProcessTime())
-	// 允许跨域: 前端部署在 store.terraria.ink, 与API不同源
-	h.Use(cors.Default())
 
 	register(h)
 	h.Spin()
