@@ -26,6 +26,7 @@ func PluginInfo(p *db.Plugin) *plugin.PluginInfo {
 		RatingScore:   p.RatingScore,
 		CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:     p.UpdatedAt.Format(time.RFC3339),
+		AssemblyName:  p.AssemblyName,
 	}
 }
 

@@ -30,6 +30,8 @@ type PluginInfo struct {
 	CreatedAt string `thrift:"created_at,9,required" form:"created_at,required" json:"created_at,required" query:"created_at,required"`
 	// 更新时间
 	UpdatedAt string `thrift:"updated_at,10,required" form:"updated_at,required" json:"updated_at,required" query:"updated_at,required"`
+	// 程序集名称
+	AssemblyName string `thrift:"assembly_name,11,required" form:"assembly_name,required" json:"assembly_name,required" query:"assembly_name,required"`
 }
 
 func NewPluginInfo() *PluginInfo {
@@ -79,6 +81,10 @@ func (p *PluginInfo) GetUpdatedAt() (v string) {
 	return p.UpdatedAt
 }
 
+func (p *PluginInfo) GetAssemblyName() (v string) {
+	return p.AssemblyName
+}
+
 var fieldIDToName_PluginInfo = map[int16]string{
 	1:  "id",
 	2:  "name",
@@ -90,6 +96,7 @@ var fieldIDToName_PluginInfo = map[int16]string{
 	8:  "rating_score",
 	9:  "created_at",
 	10: "updated_at",
+	11: "assembly_name",
 }
 
 func (p *PluginInfo) Read(iprot thrift.TProtocol) (err error) {
@@ -106,6 +113,7 @@ func (p *PluginInfo) Read(iprot thrift.TProtocol) (err error) {
 	var issetRatingScore bool = false
 	var issetCreatedAt bool = false
 	var issetUpdatedAt bool = false
+	var issetAssemblyName bool = false
 
 	if _, err = iprot.ReadStructBegin(); err != nil {
 		goto ReadStructBeginError
@@ -211,6 +219,15 @@ func (p *PluginInfo) Read(iprot thrift.TProtocol) (err error) {
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
 				goto SkipFieldError
 			}
+		case 11:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField11(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetAssemblyName = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
 		default:
 			if err = iprot.Skip(fieldTypeId); err != nil {
 				goto SkipFieldError
@@ -271,6 +288,11 @@ func (p *PluginInfo) Read(iprot thrift.TProtocol) (err error) {
 
 	if !issetUpdatedAt {
 		fieldId = 10
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetAssemblyName {
+		fieldId = 11
 		goto RequiredFieldNotSetError
 	}
 	return nil
@@ -401,6 +423,17 @@ func (p *PluginInfo) ReadField10(iprot thrift.TProtocol) error {
 	p.UpdatedAt = _field
 	return nil
 }
+func (p *PluginInfo) ReadField11(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.AssemblyName = _field
+	return nil
+}
 
 func (p *PluginInfo) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -446,6 +479,10 @@ func (p *PluginInfo) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField10(oprot); err != nil {
 			fieldId = 10
+			goto WriteFieldError
+		}
+		if err = p.writeField11(oprot); err != nil {
+			fieldId = 11
 			goto WriteFieldError
 		}
 	}
@@ -634,6 +671,23 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
+}
+
+func (p *PluginInfo) writeField11(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("assembly_name", thrift.STRING, 11); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.AssemblyName); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 end error: ", p), err)
 }
 
 func (p *PluginInfo) String() string {
