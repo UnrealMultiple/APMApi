@@ -70,13 +70,18 @@ func (s *LegacyService) Upload(content []byte) error {
 		return err
 	}
 
-	for _, m := range manifest.Parsed() {
-		if err := packPlugin(m.AssemblyName, m.Version); err != nil {
+	ms := manifest.Parsed()
+	byAssembly := make(map[string]manifest.Manifest, len(ms))
+	for _, m := range ms {
+		byAssembly[m.AssemblyName] = m
+	}
+	for _, m := range ms {
+		if err := packPlugin(m, byAssembly); err != nil {
 			return err
 		}
 	}
 
-	return syncDB(manifest.Parsed())
+	return syncDB(ms)
 }
 
 // extractZip 解压zip到指定目录(带zip slip防护)
@@ -121,18 +126,45 @@ func writeZipFile(f *zip.File, target string) error {
 	return err
 }
 
-// packPlugin 将单个插件的所有文件打包成 packed_plugins/程序集名/版本号.zip
-func packPlugin(assemblyName, version string) error {
-	files, err := filepath.Glob(filepath.Join(constants.UploadedPluginsDir, "Plugins", assemblyName+".*"))
-	if err != nil {
+// dependencyClosure 返回插件自身及其依赖树上的所有程序集名(BFS, 防循环依赖)
+func dependencyClosure(root manifest.Manifest, byAssembly map[string]manifest.Manifest) []string {
+	visited := make(map[string]bool)
+	names := make([]string, 0, 1+len(root.Dependencies))
+	queue := []string{root.AssemblyName}
+
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		if visited[name] {
+			continue
+		}
+		visited[name] = true
+		names = append(names, name)
+
+		// 依赖若也是清单中的插件, 继续展开其依赖; 否则是纯库文件, 无下级依赖
+		if m, ok := byAssembly[name]; ok {
+			queue = append(queue, m.Dependencies...)
+		}
+	}
+	return names
+}
+
+// packPlugin 将插件及其整个依赖树的文件打包成 packed_plugins/程序集名/版本号.zip
+func packPlugin(m manifest.Manifest, byAssembly map[string]manifest.Manifest) error {
+	var files []string
+	for _, name := range dependencyClosure(m, byAssembly) {
+		fs, err := filepath.Glob(filepath.Join(constants.UploadedPluginsDir, "Plugins", name+".*"))
+		if err != nil {
+			return err
+		}
+		files = append(files, fs...)
+	}
+
+	if err := os.MkdirAll(filepath.Join(constants.PackedPluginsDir, m.AssemblyName), 0o755); err != nil {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Join(constants.PackedPluginsDir, assemblyName), 0o755); err != nil {
-		return err
-	}
-
-	out, err := os.Create(VersionZipPath(assemblyName, version))
+	out, err := os.Create(VersionZipPath(m.AssemblyName, m.Version))
 	if err != nil {
 		return err
 	}
