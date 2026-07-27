@@ -1,12 +1,37 @@
 package pack
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/UnrealMultiple/APMApi/biz/model/plugin"
 	"github.com/UnrealMultiple/APMApi/pkg/db"
 )
+
+// unmarshalStringSlice 解析JSON字符串数组, 失败时返回空切片
+func unmarshalStringSlice(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	var v []string
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return []string{}
+	}
+	return v
+}
+
+// unmarshalStringMap 解析JSON字符串字典, 失败时返回空map
+func unmarshalStringMap(s string) map[string]string {
+	if s == "" {
+		return map[string]string{}
+	}
+	var v map[string]string
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return map[string]string{}
+	}
+	return v
+}
 
 // DownloadURL 拼接插件下载链接
 func DownloadURL(pluginID int64) string {
@@ -27,6 +52,10 @@ func PluginInfo(p *db.Plugin) *plugin.PluginInfo {
 		CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:     p.UpdatedAt.Format(time.RFC3339),
 		AssemblyName:  p.AssemblyName,
+		Author:        p.Author,
+		Descriptions:  unmarshalStringMap(p.Descriptions),
+		HotReload:     p.HotReload,
+		Path:          p.Path,
 	}
 }
 
@@ -44,8 +73,11 @@ func PluginVersionInfoList(vs []db.PluginVersion) []*plugin.PluginVersionInfo {
 	items := make([]*plugin.PluginVersionInfo, 0, len(vs))
 	for _, v := range vs {
 		items = append(items, &plugin.PluginVersionInfo{
-			Version:   v.Version,
-			CreatedAt: v.CreatedAt.Format(time.RFC3339),
+			Version:      v.Version,
+			CreatedAt:    v.CreatedAt.Format(time.RFC3339),
+			Dependencies: unmarshalStringSlice(v.Dependencies),
+			HotReload:    v.HotReload,
+			Path:         v.Path,
 		})
 	}
 	return items

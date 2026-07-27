@@ -4,6 +4,7 @@ package legacy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -19,14 +20,6 @@ import (
 	"github.com/UnrealMultiple/APMApi/pkg/constants"
 	"github.com/UnrealMultiple/APMApi/pkg/manifest"
 )
-
-// ensureManifest 清单未加载时尝试从磁盘懒加载
-func ensureManifest() bool {
-	if _, ok := manifest.Raw(); ok {
-		return true
-	}
-	return manifest.Load() == nil
-}
 
 // SupermarketXml 镜像信息
 // @router /supermarket/xml [GET]
@@ -77,31 +70,40 @@ func UploadPlugin(ctx context.Context, c *app.RequestContext) {
 	c.JSON(consts.StatusOK, &legacy.UploadPluginResp{Message: "插件包更新成功~"})
 }
 
-// GetPluginList 获取插件清单列表(原样返回 Plugins.json)
+// GetPluginList 获取插件清单列表(从数据库读取)
 // @router /plugin/get_plugin_list [GET]
 func GetPluginList(ctx context.Context, c *app.RequestContext) {
-	if !ensureManifest() {
+	svc := service.NewLegacyService(ctx)
+	manifests, err := svc.GetAllPluginManifests()
+	if err != nil {
+		hlog.CtxErrorf(ctx, "读取插件列表失败: %+v", err)
 		c.String(consts.StatusInternalServerError, "Internal Server Error")
 		return
 	}
-	raw, _ := manifest.Raw()
-	c.Data(consts.StatusOK, "application/json", raw)
+	data, err := json.Marshal(manifests)
+	if err != nil {
+		c.String(consts.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+	c.Data(consts.StatusOK, "application/json", data)
 }
 
-// GetPluginManifest 获取单个插件清单
+// GetPluginManifest 获取单个插件清单(从数据库读取)
 // @router /plugin/get_plugin_manifest/ [GET]
 func GetPluginManifest(ctx context.Context, c *app.RequestContext) {
-	if !ensureManifest() {
-		c.String(consts.StatusInternalServerError, "Internal Server Error")
-		return
-	}
-
-	item, ok := manifest.Find(c.Query("assembly_name"))
+	assemblyName := c.Query("assembly_name")
+	svc := service.NewLegacyService(ctx)
+	m, ok := svc.GetPluginManifestByAssembly(assemblyName)
 	if !ok {
 		pack.RespLegacyError(c, consts.StatusNotFound, "没有找到这个插件捏~")
 		return
 	}
-	c.Data(consts.StatusOK, "application/json", item)
+	data, err := json.Marshal(m)
+	if err != nil {
+		c.String(consts.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+	c.Data(consts.StatusOK, "application/json", data)
 }
 
 // GetAllPlugins 下载所有插件

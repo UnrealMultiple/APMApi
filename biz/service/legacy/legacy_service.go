@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -208,6 +209,10 @@ func syncDB(ms []manifest.Manifest) error {
 	for _, m := range ms {
 		assemblyNames = append(assemblyNames, m.AssemblyName)
 
+		// 序列化 Descriptions 和 Dependencies 为 JSON
+		descriptionsJSON, _ := json.Marshal(m.Description)
+		dependenciesJSON, _ := json.Marshal(m.Dependencies)
+
 		var p db.Plugin
 		err := db.DB.Unscoped().Where("assembly_name = ?", m.AssemblyName).First(&p).Error
 		switch {
@@ -216,6 +221,10 @@ func syncDB(ms []manifest.Manifest) error {
 				Name:         m.Name,
 				AssemblyName: m.AssemblyName,
 				Description:  pickDescription(m.Description),
+				Descriptions: string(descriptionsJSON),
+				Author:       m.Author,
+				HotReload:    m.HotReload,
+				Path:         m.Path,
 				Version:      m.Version,
 			}
 			if err := db.DB.Create(&p).Error; err != nil {
@@ -226,22 +235,31 @@ func syncDB(ms []manifest.Manifest) error {
 		default:
 			// 重新上传的插件恢复上架
 			if err := db.DB.Unscoped().Model(&p).Updates(map[string]any{
-				"name":        m.Name,
-				"description": pickDescription(m.Description),
-				"version":     m.Version,
-				"deleted_at":  nil,
+				"name":         m.Name,
+				"description":  pickDescription(m.Description),
+				"descriptions": string(descriptionsJSON),
+				"author":       m.Author,
+				"hot_reload":   m.HotReload,
+				"path":         m.Path,
+				"version":      m.Version,
+				"deleted_at":   nil,
 			}).Error; err != nil {
 				return err
 			}
 		}
 
 		if err := db.DB.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "plugin_id"}, {Name: "version"}},
-			DoUpdates: clause.AssignmentColumns([]string{"file_path", "updated_at"}),
+			Columns: []clause.Column{{Name: "plugin_id"}, {Name: "version"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"file_path", "dependencies", "hot_reload", "path", "updated_at",
+			}),
 		}).Create(&db.PluginVersion{
-			PluginID: p.ID,
-			Version:  m.Version,
-			FilePath: VersionZipPath(m.AssemblyName, m.Version),
+			PluginID:     p.ID,
+			Version:      m.Version,
+			FilePath:     VersionZipPath(m.AssemblyName, m.Version),
+			Dependencies: string(dependenciesJSON),
+			HotReload:    m.HotReload,
+			Path:         m.Path,
 		}).Error; err != nil {
 			return err
 		}
@@ -262,18 +280,92 @@ func syncDB(ms []manifest.Manifest) error {
 	return nil
 }
 
-// ResolveLegacyZip 老API: 按程序集名称解析最新版本zip路径
+// ResolveLegacyZip 老API: 按程序集名称从数据库解析最新版本zip路径
 func (s *LegacyService) ResolveLegacyZip(assemblyName string) (string, bool) {
-	for _, m := range manifest.Parsed() {
-		if m.AssemblyName == assemblyName {
-			path := VersionZipPath(m.AssemblyName, m.Version)
-			if _, err := os.Stat(path); err == nil {
-				return path, true
-			}
-			return "", false
-		}
+	var p db.Plugin
+	if err := db.DB.Where("assembly_name = ?", assemblyName).First(&p).Error; err != nil {
+		return "", false
 	}
-	return "", false
+	var pv db.PluginVersion
+	if err := db.DB.Where("plugin_id = ? AND version = ?", p.ID, p.Version).First(&pv).Error; err != nil {
+		return "", false
+	}
+	if _, err := os.Stat(pv.FilePath); err != nil {
+		return "", false
+	}
+	return pv.FilePath, true
+}
+
+// dbPluginToManifest 将数据库插件+版本转换为老API清单格式
+func dbPluginToManifest(p db.Plugin, pv db.PluginVersion) manifest.Manifest {
+	var descriptions map[string]string
+	if p.Descriptions != "" {
+		_ = json.Unmarshal([]byte(p.Descriptions), &descriptions)
+	}
+	if descriptions == nil {
+		descriptions = map[string]string{}
+	}
+
+	var deps []string
+	if pv.Dependencies != "" {
+		_ = json.Unmarshal([]byte(pv.Dependencies), &deps)
+	}
+	if deps == nil {
+		deps = []string{}
+	}
+
+	return manifest.Manifest{
+		Name:         p.Name,
+		Version:      p.Version,
+		Author:       p.Author,
+		Description:  descriptions,
+		AssemblyName: p.AssemblyName,
+		Path:         pv.Path,
+		Dependencies: deps,
+		HotReload:    pv.HotReload,
+	}
+}
+
+// GetAllPluginManifests 从数据库读取所有插件清单(供老API GetPluginList使用)
+func (s *LegacyService) GetAllPluginManifests() ([]manifest.Manifest, error) {
+	var plugins []db.Plugin
+	if err := db.DB.Find(&plugins).Error; err != nil {
+		return nil, err
+	}
+	if len(plugins) == 0 {
+		return []manifest.Manifest{}, nil
+	}
+
+	// 批量取所有最新版本记录
+	var allVersions []db.PluginVersion
+	if err := db.DB.Find(&allVersions).Error; err != nil {
+		return nil, err
+	}
+	// key: "pluginID:version"
+	pvMap := make(map[string]db.PluginVersion, len(allVersions))
+	for _, pv := range allVersions {
+		pvMap[fmt.Sprintf("%d:%s", pv.PluginID, pv.Version)] = pv
+	}
+
+	result := make([]manifest.Manifest, 0, len(plugins))
+	for _, p := range plugins {
+		pv := pvMap[fmt.Sprintf("%d:%s", p.ID, p.Version)]
+		result = append(result, dbPluginToManifest(p, pv))
+	}
+	return result, nil
+}
+
+// GetPluginManifestByAssembly 从数据库读取单个插件清单(供老API GetPluginManifest使用)
+func (s *LegacyService) GetPluginManifestByAssembly(assemblyName string) (manifest.Manifest, bool) {
+	var p db.Plugin
+	if err := db.DB.Where("assembly_name = ?", assemblyName).First(&p).Error; err != nil {
+		return manifest.Manifest{}, false
+	}
+	var pv db.PluginVersion
+	if err := db.DB.Where("plugin_id = ? AND version = ?", p.ID, p.Version).First(&pv).Error; err != nil {
+		return manifest.Manifest{}, false
+	}
+	return dbPluginToManifest(p, pv), true
 }
 
 // IncDownloadCount 按程序集名称增加下载量(老API下载单插件时统计)

@@ -14,7 +14,7 @@ type PluginInfo struct {
 	ID int64 `thrift:"id,1,required" form:"id,required" json:"id,required" query:"id,required"`
 	// 插件名称
 	Name string `thrift:"name,2,required" form:"name,required" json:"name,required" query:"name,required"`
-	// 插件描述
+	// 插件描述(优先zh-CN)
 	Description string `thrift:"description,3,required" form:"description,required" json:"description,required" query:"description,required"`
 	// 最新版本号
 	Version string `thrift:"version,4,required" form:"version,required" json:"version,required" query:"version,required"`
@@ -32,6 +32,14 @@ type PluginInfo struct {
 	UpdatedAt string `thrift:"updated_at,10,required" form:"updated_at,required" json:"updated_at,required" query:"updated_at,required"`
 	// 程序集名称
 	AssemblyName string `thrift:"assembly_name,11,required" form:"assembly_name,required" json:"assembly_name,required" query:"assembly_name,required"`
+	// 插件作者
+	Author string `thrift:"author,12,required" form:"author,required" json:"author" query:"author"`
+	// 所有语言的描述
+	Descriptions map[string]string `thrift:"descriptions,13,required" form:"descriptions,required" json:"descriptions" query:"descriptions"`
+	// 是否支持热重载(最新版本)
+	HotReload bool `thrift:"hot_reload,14,required" form:"hot_reload,required" json:"hot_reload" query:"hot_reload"`
+	// 插件路径(最新版本)
+	Path string `thrift:"path,15,required" form:"path,required" json:"path" query:"path"`
 }
 
 func NewPluginInfo() *PluginInfo {
@@ -83,6 +91,22 @@ func (p *PluginInfo) GetUpdatedAt() (v string) {
 
 func (p *PluginInfo) GetAssemblyName() (v string) {
 	return p.AssemblyName
+}
+
+func (p *PluginInfo) GetAuthor() (v string) {
+	return p.Author
+}
+
+func (p *PluginInfo) GetDescriptions() (v map[string]string) {
+	return p.Descriptions
+}
+
+func (p *PluginInfo) GetHotReload() (v bool) {
+	return p.HotReload
+}
+
+func (p *PluginInfo) GetPath() (v string) {
+	return p.Path
 }
 
 var fieldIDToName_PluginInfo = map[int16]string{
@@ -704,6 +728,12 @@ type PluginVersionInfo struct {
 	Version string `thrift:"version,1,required" form:"version,required" json:"version,required" query:"version,required"`
 	// 发布时间
 	CreatedAt string `thrift:"created_at,2,required" form:"created_at,required" json:"created_at,required" query:"created_at,required"`
+	// 依赖列表
+	Dependencies []string `thrift:"dependencies,3,required" form:"dependencies,required" json:"dependencies" query:"dependencies"`
+	// 是否支持热重载
+	HotReload bool `thrift:"hot_reload,4,required" form:"hot_reload,required" json:"hot_reload" query:"hot_reload"`
+	// 插件路径
+	Path string `thrift:"path,5,required" form:"path,required" json:"path" query:"path"`
 }
 
 func NewPluginVersionInfo() *PluginVersionInfo {
@@ -719,6 +749,18 @@ func (p *PluginVersionInfo) GetVersion() (v string) {
 
 func (p *PluginVersionInfo) GetCreatedAt() (v string) {
 	return p.CreatedAt
+}
+
+func (p *PluginVersionInfo) GetDependencies() (v []string) {
+	return p.Dependencies
+}
+
+func (p *PluginVersionInfo) GetHotReload() (v bool) {
+	return p.HotReload
+}
+
+func (p *PluginVersionInfo) GetPath() (v string) {
+	return p.Path
 }
 
 var fieldIDToName_PluginVersionInfo = map[int16]string{
